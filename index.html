@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gravity Flip Runner</title>
+<style>
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: #14122b; color: #f1efff;
+    font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+    display: flex; flex-direction: column; align-items: center;
+    justify-content: center; gap: 12px; padding: 12px;
+    user-select: none; -webkit-user-select: none;
+  }
+  h1 { margin: 0; font-size: 1.4rem; }
+  #wrap { width: 100%; max-width: 800px; }
+  canvas {
+    width: 100%; height: auto; display: block;
+    background: #1b1840; border-radius: 12px;
+    touch-action: manipulation; cursor: pointer;
+  }
+  p { color: #9d98c9; font-size: .9rem; margin: 0; text-align: center; }
+</style>
+</head>
+<body>
+<h1>Gravity Flip Runner</h1>
+<div id="wrap"><canvas id="c" width="800" height="400"></canvas></div>
+<p>Press Space, click, or tap to flip gravity. Dodge the spikes and blocks.</p>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+const FLOOR = H - 40, CEIL = 40;
+const SIZE = 32;
+
+let best = 0;
+try { best = Number(localStorage.getItem('gfr-best')) || 0; } catch (e) {}
+
+let state, player, obstacles, score, speed, spawnTimer, stars;
+let frameSinceOver = 0;
+
+function reset() {
+  player = { x: 120, y: FLOOR - SIZE, vy: 0, dir: 1, onGround: true, rot: 0 };
+  obstacles = [];
+  score = 0;
+  speed = 5;
+  spawnTimer = 60;
+  stars = Array.from({ length: 40 }, () => ({
+    x: Math.random() * W, y: Math.random() * H, s: Math.random() * 2 + 0.5
+  }));
+}
+
+function flip() {
+  if (state === 'ready' || state === 'over') {
+    if (state === 'over' && frameSinceOver < 20) return;
+    reset();
+    state = 'play';
+    return;
+  }
+  if (player.onGround) {
+    player.dir *= -1;
+    player.onGround = false;
+  }
+}
+
+function spawn() {
+  const onFloor = Math.random() < 0.5;
+  const type = Math.random() < 0.55 ? 'spike' : 'block';
+  const w = type === 'spike' ? 32 : 30 + Math.random() * 30;
+  const h = type === 'spike' ? 32 : 40 + Math.random() * 50;
+  obstacles.push({ x: W + 20, w, h, onFloor, type });
+
+  // tougher pairs once score is high
+  if (score > 300 && Math.random() < 0.3) {
+    obstacles.push({ x: W + 220, w: 32, h: 32, onFloor: !onFloor, type: 'spike' });
+  }
+}
+
+function hitbox(o) {
+  const y = o.onFloor ? FLOOR - o.h : CEIL;
+  return { x: o.x + 4, y: y + 4, w: o.w - 8, h: o.h - 8 };
+}
+
+function update() {
+  if (state !== 'play') return;
+
+  // gravity
+  player.vy += 0.9 * player.dir;
+  player.y += player.vy;
+
+  const floorY = FLOOR - SIZE, ceilY = CEIL;
+  if (player.y >= floorY) { player.y = floorY; player.vy = 0; player.onGround = player.dir === 1; }
+  if (player.y <= ceilY)  { player.y = ceilY;  player.vy = 0; player.onGround = player.dir === -1; }
+
+  // spin while in the air
+  if (player.onGround) player.rot = player.dir === 1 ? 0 : Math.PI;
+  else player.rot -= 0.25 * player.dir;
+
+  // difficulty ramp
+  speed = 5 + Math.min(score / 400, 6);
+  spawnTimer--;
+  if (spawnTimer <= 0) {
+    spawn();
+    spawnTimer = Math.max(35, 90 - score / 25) + Math.random() * 30;
+  }
+
+  for (const o of obstacles) o.x -= speed;
+  obstacles = obstacles.filter(o => o.x + o.w > -10);
+  for (const s of stars) {
+    s.x -= s.s;
+    if (s.x < 0) { s.x = W; s.y = Math.random() * H; }
+  }
+
+  // collision
+  const p = { x: player.x + 4, y: player.y + 4, w: SIZE - 8, h: SIZE - 8 };
+  for (const o of obstacles) {
+    const b = hitbox(o);
+    if (p.x < b.x + b.w && p.x + p.w > b.x && p.y < b.y + b.h && p.y + p.h > b.y) {
+      state = 'over';
+      frameSinceOver = 0;
+      if (score > best) {
+        best = Math.floor(score);
+        try { localStorage.setItem('gfr-best', String(best)); } catch (e) {}
+      }
+    }
+  }
+  score += speed * 0.1;
+}
+
+function drawObstacle(o) {
+  const y = o.onFloor ? FLOOR - o.h : CEIL;
+  ctx.fillStyle = '#ef476f';
+  if (o.type === 'block') {
+    ctx.fillRect(o.x, y, o.w, o.h);
+    ctx.fillStyle = 'rgba(255,255,255,.18)';
+    ctx.fillRect(o.x, y, o.w, 6);
+  } else {
+    ctx.beginPath();
+    if (o.onFloor) {
+      ctx.moveTo(o.x, FLOOR);
+      ctx.lineTo(o.x + o.w / 2, FLOOR - o.h);
+      ctx.lineTo(o.x + o.w, FLOOR);
+    } else {
+      ctx.moveTo(o.x, CEIL);
+      ctx.lineTo(o.x + o.w / 2, CEIL + o.h);
+      ctx.lineTo(o.x + o.w, CEIL);
+    }
+    ctx.closePath();
+    ctx.fill();
+  }
+}
+
+function draw() {
+  ctx.fillStyle = '#1b1840';
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  for (const s of stars) ctx.fillRect(s.x, s.y, s.s, s.s);
+
+  // floor and ceiling
+  ctx.fillStyle = '#2a2650';
+  ctx.fillRect(0, FLOOR, W, H - FLOOR);
+  ctx.fillRect(0, 0, W, CEIL);
+  ctx.fillStyle = '#06d6a0';
+  ctx.fillRect(0, FLOOR, W, 3);
+  ctx.fillRect(0, CEIL - 3, W, 3);
+
+  obstacles.forEach(drawObstacle);
+
+  // player
+  ctx.save();
+  ctx.translate(player.x + SIZE / 2, player.y + SIZE / 2);
+  ctx.rotate(player.rot);
+  ctx.fillStyle = '#ffd166';
+  ctx.fillRect(-SIZE / 2, -SIZE / 2, SIZE, SIZE);
+  ctx.fillStyle = '#14122b';
+  ctx.fillRect(2, -8, 6, 6);
+  ctx.fillRect(-8, -8, 6, 6);
+  ctx.restore();
+
+  // HUD
+  ctx.fillStyle = '#f1efff';
+  ctx.font = 'bold 18px "Trebuchet MS", sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Score ' + Math.floor(score), 16, 26);
+  ctx.textAlign = 'right';
+  ctx.fillText('Best ' + best, W - 16, 26);
+
+  ctx.textAlign = 'center';
+  if (state === 'ready') {
+    ctx.font = 'bold 30px "Trebuchet MS", sans-serif';
+    ctx.fillText('Tap or press Space to start', W / 2, H / 2);
+  } else if (state === 'over') {
+    ctx.fillStyle = 'rgba(20,18,43,.7)';
+    ctx.fillRect(0, H / 2 - 60, W, 120);
+    ctx.fillStyle = '#f1efff';
+    ctx.font = 'bold 32px "Trebuchet MS", sans-serif';
+    ctx.fillText('Crashed. Score ' + Math.floor(score), W / 2, H / 2 - 8);
+    ctx.font = '18px "Trebuchet MS", sans-serif';
+    ctx.fillText('Tap or press Space to try again', W / 2, H / 2 + 28);
+  }
+}
+
+function loop() {
+  if (state === 'over') frameSinceOver++;
+  update();
+  draw();
+  requestAnimationFrame(loop);
+}
+
+window.addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'ArrowDown') {
+    e.preventDefault();
+    flip();
+  }
+});
+canvas.addEventListener('pointerdown', e => { e.preventDefault(); flip(); });
+
+state = 'ready';
+reset();
+loop();
+</script>
+</body>
+</html>
