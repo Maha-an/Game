@@ -8,7 +8,7 @@
   * { box-sizing: border-box; }
   html, body { height: 100%; margin: 0; }
   body {
-    background: #14122b; color: #f1efff;
+    background: #ffffff; color: #7a1f4d;
     font-family: "Trebuchet MS", "Segoe UI", sans-serif;
     display: flex; flex-direction: column; align-items: center;
     justify-content: center; gap: 12px; padding: 12px;
@@ -18,10 +18,10 @@
   #wrap { width: 100%; max-width: 800px; }
   canvas {
     width: 100%; height: auto; display: block;
-    background: #1b1840; border-radius: 12px;
+    background: #ffd6e7; border-radius: 12px;
     touch-action: manipulation; cursor: pointer;
   }
-  p { color: #9d98c9; font-size: .9rem; margin: 0; text-align: center; }
+  p { color: #c2678f; font-size: .9rem; margin: 0; text-align: center; }
 </style>
 </head>
 <body>
@@ -36,6 +36,21 @@ const W = canvas.width, H = canvas.height;
 const FLOOR = H - 40, CEIL = 40;
 const SIZE = 32;
 
+// Pink and white theme
+const COLORS = {
+  bg: '#ffd6e7',
+  star: 'rgba(255,255,255,.9)',
+  lane: '#ff8fb8',
+  laneEdge: '#ffffff',
+  hazard: '#c2185b',
+  hazardShine: 'rgba(255,255,255,.35)',
+  player: '#ffffff',
+  playerOutline: '#c2185b',
+  eye: '#7a1f4d',
+  text: '#7a1f4d',
+  overlay: 'rgba(255,255,255,.85)'
+};
+
 let best = 0;
 try { best = Number(localStorage.getItem('gfr-best')) || 0; } catch (e) {}
 
@@ -49,7 +64,7 @@ function reset() {
   speed = 5;
   spawnTimer = 60;
   stars = Array.from({ length: 40 }, () => ({
-    x: Math.random() * W, y: Math.random() * H, s: Math.random() * 2 + 0.5
+    x: Math.random() * W, y: Math.random() * H, s: Math.random() * 2 + 1
   }));
 }
 
@@ -132,10 +147,10 @@ function update() {
 
 function drawObstacle(o) {
   const y = o.onFloor ? FLOOR - o.h : CEIL;
-  ctx.fillStyle = '#ef476f';
+  ctx.fillStyle = COLORS.hazard;
   if (o.type === 'block') {
     ctx.fillRect(o.x, y, o.w, o.h);
-    ctx.fillStyle = 'rgba(255,255,255,.18)';
+    ctx.fillStyle = COLORS.hazardShine;
     ctx.fillRect(o.x, y, o.w, 6);
   } else {
     ctx.beginPath();
@@ -154,17 +169,17 @@ function drawObstacle(o) {
 }
 
 function draw() {
-  ctx.fillStyle = '#1b1840';
+  ctx.fillStyle = COLORS.bg;
   ctx.fillRect(0, 0, W, H);
 
-  ctx.fillStyle = 'rgba(255,255,255,.5)';
+  ctx.fillStyle = COLORS.star;
   for (const s of stars) ctx.fillRect(s.x, s.y, s.s, s.s);
 
   // floor and ceiling
-  ctx.fillStyle = '#2a2650';
+  ctx.fillStyle = COLORS.lane;
   ctx.fillRect(0, FLOOR, W, H - FLOOR);
   ctx.fillRect(0, 0, W, CEIL);
-  ctx.fillStyle = '#06d6a0';
+  ctx.fillStyle = COLORS.laneEdge;
   ctx.fillRect(0, FLOOR, W, 3);
   ctx.fillRect(0, CEIL - 3, W, 3);
 
@@ -174,15 +189,18 @@ function draw() {
   ctx.save();
   ctx.translate(player.x + SIZE / 2, player.y + SIZE / 2);
   ctx.rotate(player.rot);
-  ctx.fillStyle = '#ffd166';
+  ctx.fillStyle = COLORS.player;
   ctx.fillRect(-SIZE / 2, -SIZE / 2, SIZE, SIZE);
-  ctx.fillStyle = '#14122b';
+  ctx.strokeStyle = COLORS.playerOutline;
+  ctx.lineWidth = 3;
+  ctx.strokeRect(-SIZE / 2, -SIZE / 2, SIZE, SIZE);
+  ctx.fillStyle = COLORS.eye;
   ctx.fillRect(2, -8, 6, 6);
   ctx.fillRect(-8, -8, 6, 6);
   ctx.restore();
 
   // HUD
-  ctx.fillStyle = '#f1efff';
+  ctx.fillStyle = COLORS.text;
   ctx.font = 'bold 18px "Trebuchet MS", sans-serif';
   ctx.textAlign = 'left';
   ctx.fillText('Score ' + Math.floor(score), 16, 26);
@@ -194,9 +212,9 @@ function draw() {
     ctx.font = 'bold 30px "Trebuchet MS", sans-serif';
     ctx.fillText('Tap or press Space to start', W / 2, H / 2);
   } else if (state === 'over') {
-    ctx.fillStyle = 'rgba(20,18,43,.7)';
+    ctx.fillStyle = COLORS.overlay;
     ctx.fillRect(0, H / 2 - 60, W, 120);
-    ctx.fillStyle = '#f1efff';
+    ctx.fillStyle = COLORS.text;
     ctx.font = 'bold 32px "Trebuchet MS", sans-serif';
     ctx.fillText('Crashed. Score ' + Math.floor(score), W / 2, H / 2 - 8);
     ctx.font = '18px "Trebuchet MS", sans-serif';
